@@ -151,7 +151,14 @@ class Orchestrator:
 
     def load_action(self, module_name, action):
         """Load an action from the actions file"""
-        module = importlib.import_module(f'actions.{module_name}')
+        # Optional attacks (SSH/RDP/SMB) ship as deferred modules that are only
+        # present once their binaries are downloaded; if a module (or its native
+        # deps) isn't installed, skip it so the pure-Python subset still runs.
+        try:
+            module = importlib.import_module(f'actions.{module_name}')
+        except ImportError as e:
+            logger.info(f"Action '{module_name}' not available (binaries not installed) — skipping: {e}")
+            return
         try:
             b_class = action["b_class"]
             action_instance = getattr(module, b_class)(self.shared_data)

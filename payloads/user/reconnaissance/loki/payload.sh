@@ -75,6 +75,19 @@ fetch_attack_binaries() {
         enable_deferred_actions; return 0
     fi
     online || return 0                       # offline: leave attacks disabled
+    LOG ""
+    LOG "yellow" "Optional attack binaries (SSH / RDP / SMB)"
+    LOG "These add SSH, RDP and SMB brute force + file theft."
+    LOG "Without them Loki still runs nmap recon/vuln plus"
+    LOG "FTP / Telnet / MySQL brute force (no binaries needed)."
+    LOG "green" "GREEN = Download    RED = Skip"
+    while true; do
+        B=$(WAIT_FOR_INPUT 2>/dev/null)
+        case "$B" in
+            GREEN|A) break ;;
+            RED|B) LOG "Skipping optional binaries."; return 0 ;;
+        esac
+    done
     LOG "cyan" "Fetching optional attack binaries (SSH/RDP/SMB)..."
     if command -v curl >/dev/null 2>&1; then
         curl -fsSL "$BINARIES_URL" -o /tmp/loki_binz.tgz 2>/dev/null
