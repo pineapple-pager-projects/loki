@@ -707,10 +707,16 @@ class SharedData:
             self.font_size_large = 24
             self.font_size_title = 32
 
-            # Verify fonts exist
+            # Verify fonts exist. v2 ships pre-rendered .fatlas atlases, not the
+            # source .ttf/.TTF (which are stripped from the deploy tree), so a
+            # missing .ttf with its atlas present is expected — only warn when
+            # BOTH are gone (nothing to render from).
             for font_path in [self.font_arial_path, self.font_viking_path]:
-                if not os.path.exists(font_path):
-                    logger.warning(f"Font not found: {font_path}")
+                atlas_path = os.path.splitext(font_path)[0] + '.fatlas'
+                if not os.path.exists(font_path) and not os.path.exists(atlas_path):
+                    logger.warning(f"Font not found: {font_path} (no .fatlas atlas either)")
+                elif not os.path.exists(font_path):
+                    logger.debug(f"Using pre-rendered atlas for {os.path.basename(font_path)}")
 
         except Exception as e:
             logger.error(f"Error loading font paths: {e}")

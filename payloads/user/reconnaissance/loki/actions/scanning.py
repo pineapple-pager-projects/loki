@@ -591,16 +591,52 @@ class NetworkScanner:
                 except Exception as e:
                     self.outer_instance.logger.error(f"Error in scan_network_and_write_to_csv (initial write): {e}")
 
-            self.outer_instance.nm.scan(hosts=str(self.network), arguments='-sn')
-            threads = []
-            for host in self.outer_instance.nm.all_hosts():
-                t = threading.Thread(target=self.scan_host, args=(host,))
-                t.start()
-                threads.append(t)
+            # nmap -sn (ping sweep) already resolves MAC (ARP), vendor and the
+            # reverse-DNS hostname for every live host on the local subnet, so we
+            # read those straight from the scan result instead of spawning a
+            # thread-per-host that re-pings + re-getmacs + runs a 4-method hostname
+            # lookup. On the single-core device that old thread storm pinned the
+            # CPU for ~55s and starved the display thread (frozen animation); this
+            # path does the same discovery with no extra subprocesses or threads.
+            nm = self.outer_instance.nm
+            nm.scan(hosts=str(self.network), arguments='-sn')
+            oi = self.outer_instance
+            rows = []
+            for ip in nm.all_hosts():
+                if oi.blacklistcheck and ip in oi.ip_scan_blacklist:
+                    continue
+                try:
+                    host = nm[ip]
+                    # MAC straight from the ARP table nmap already built.
+                    mac = ''
+                    addrs = host.get('addresses', {}) if hasattr(host, 'get') else host['addresses']
+                    if addrs:
+                        mac = addrs.get('mac', '') or ''
+                    mac = mac.lower()  # match getmac/netkb casing for blacklist + merge
+                    # Hostname from nmap's own parallel resolver (free with -sn).
+                    hostname = host.hostname() or ''
+                    if hostname == ip:
+                        hostname = ''
+                    # Fallback MAC lookup only when nmap didn't get one (rare:
+                    # off-subnet / different VLAN) — keeps the fast path thread-free.
+                    if not mac:
+                        mac = oi.get_mac_address(ip, hostname)
+                    if oi.blacklistcheck and mac in oi.mac_scan_blacklist:
+                        continue
+                    rows.append((ip, hostname, mac))
+                except Exception as e:
+                    oi.logger.error(f"Error processing host {ip}: {e}")
 
-            # Wait for all host scan threads to complete (MAC lookups can be slow)
-            for t in threads:
-                t.join(timeout=30)  # 30 sec max per thread
+            with oi.lock:
+                try:
+                    with open(self.csv_scan_file, 'a', newline='') as file:
+                        writer = csv.writer(file)
+                        for ip, hostname, mac in rows:
+                            writer.writerow([ip, hostname, mac])
+                            self.ip_hostname_list.append((ip, hostname, mac))
+                except Exception as e:
+                    oi.logger.error(f"Error writing host rows: {e}")
+            self.progress = len(rows)
 
             self.outer_instance.sort_and_write_csv(self.csv_scan_file)
 
