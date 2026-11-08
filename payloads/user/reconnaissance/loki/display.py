@@ -561,19 +561,8 @@ class Display:
             button = self.pager.wait_button()
 
             if button & self.pager.BTN_DOWN:
-                # Physical DOWN = adjust selected item left/decrease
-                if selected == 0:
-                    current_brightness = max(20, current_brightness - 10)
-                    self.pager.set_brightness(current_brightness, persist=True)
-                    self.screen_brightness = current_brightness
-                    draw_menu()
-                elif selected - 1 == launcher_opt_idx and multi_launch:
-                    launcher_idx = (launcher_idx - 1) % len(launchers)
-                    title, path = launchers[launcher_idx]
-                    options[launcher_opt_idx] = (title.upper(), (42, path))
-                    draw_menu()
-            elif button & self.pager.BTN_UP:
-                # Physical UP = adjust selected item right/increase
+                # Portrait hold: landscape-DOWN is the physical RIGHT-side button,
+                # so it moves the bar right / increases (and launcher -> next).
                 if selected == 0:
                     current_brightness = min(100, current_brightness + 10)
                     self.pager.set_brightness(current_brightness, persist=True)
@@ -581,6 +570,19 @@ class Display:
                     draw_menu()
                 elif selected - 1 == launcher_opt_idx and multi_launch:
                     launcher_idx = (launcher_idx + 1) % len(launchers)
+                    title, path = launchers[launcher_idx]
+                    options[launcher_opt_idx] = (title.upper(), (42, path))
+                    draw_menu()
+            elif button & self.pager.BTN_UP:
+                # Portrait hold: landscape-UP is the physical LEFT-side button,
+                # so it moves the bar left / decreases (and launcher -> prev).
+                if selected == 0:
+                    current_brightness = max(20, current_brightness - 10)
+                    self.pager.set_brightness(current_brightness, persist=True)
+                    self.screen_brightness = current_brightness
+                    draw_menu()
+                elif selected - 1 == launcher_opt_idx and multi_launch:
+                    launcher_idx = (launcher_idx - 1) % len(launchers)
                     title, path = launchers[launcher_idx]
                     options[launcher_opt_idx] = (title.upper(), (42, path))
                     draw_menu()
