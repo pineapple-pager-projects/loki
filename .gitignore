@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Python bytecode (regenerated automatically)
+__pycache__/
+*.pyc
+# Keep the vendored lib/ .pyc — these are the ONLY form of that code shipped
+!payloads/user/reconnaissance/loki/lib/**/*.pyc
+
+# Runtime data created on the Pager
+loot/
+logs/
+*.log
+
+# Local dev
+.env
+*.swp
+.idea/
+.vscode/
