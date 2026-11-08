@@ -908,7 +908,8 @@ class SharedData:
         self.font_menu_path = self.font_arial_path
         for fname in ('menu.ttf', 'menu.TTF', 'menu.otf'):
             mf = os.path.join(theme_dir, 'fonts', fname)
-            if os.path.isfile(mf):
+            # Accept the pre-rendered .fatlas sibling (device ships atlases, not .ttf)
+            if os.path.isfile(mf) or os.path.isfile(os.path.splitext(mf)[0] + '.fatlas'):
                 self.font_menu_path = mf
                 logger.debug(f"Theme menu font: {mf}")
                 break

@@ -8,16 +8,54 @@ This gives theme creators complete artistic control — any layout, any style, a
 
 | Theme | Theme Name | Animation Mode | Author |
 |-------|-----------|----------------|--------|
+| `loki` | Loki (White) | Sequential | brAinphreAk |
+| `loki_pink` | Loki (Pink) | Sequential | brAinphreAk |
 | `loki_dark` | Loki (Dark) | Sequential | brAinphreAk |
-| `loki` | Loki (Light) | Sequential | brAinphreAk |
 | `bjorn` | Bjorn | Random | infinition |
 | `clown` | ClownSec | Random | brAinphreAk |
 | `pirate` | Cap'n Plndr | Random | brAinphreAk |
 | `knight` | Sir Haxalot | Sequential | Zombie Joe |
 
-### Loki Dark (Default)
+> **`loki` is the base theme.** Its `images/` folder holds the shared character
+> animations, menu/pause/settings backgrounds, and static icons that every other
+> Loki-family theme reuses by fallback (see [Base Theme & Asset Sharing](#base-theme--asset-sharing)).
+> The `loki_pink` and `loki_dark` themes ship only their own `main_bg` (and a
+> `title.fatlas`); everything else comes from `loki`, so they add ~1 MB each
+> instead of duplicating the ~76 MB animation set.
 
-Black background with green text — classic hacker terminal aesthetic. Uses the same character animations and menu backgrounds as Loki (Light).
+### Loki (White) — base theme
+
+Neutral white stone background with black text. Carries the full shared asset set.
+
+<table><tr>
+<td valign="top">
+  <img src="screenshots/18-loki-theme-menu.png" width="380" alt="Loki Menu"><br>
+  <img src="screenshots/26-loki-theme-landscape.png" width="380" alt="Loki White Landscape">
+</td>
+<td valign="top">
+  <img src="screenshots/31-loki-theme-portrait.png" width="175" alt="Loki White Portrait">
+</td>
+</tr></table>
+
+> _Running-screen screenshots pending a refresh — they currently show the pink variant._
+
+### Loki (Pink)
+
+Pink stone background (the former "Loki (Light)"). Shares all animations and menu
+art with the base theme; only the running-screen background differs.
+
+<table><tr>
+<td valign="top">
+  <img src="screenshots/26-loki-theme-landscape.png" width="380" alt="Loki Pink Landscape">
+</td>
+<td valign="top">
+  <img src="screenshots/31-loki-theme-portrait.png" width="175" alt="Loki Pink Portrait">
+</td>
+</tr></table>
+
+### Loki (Dark)
+
+Black background with green text — classic hacker terminal aesthetic. Uses the same character animations and menu backgrounds as the base theme.
 
 <table><tr>
 <td valign="top">
@@ -26,18 +64,6 @@ Black background with green text — classic hacker terminal aesthetic. Uses the
 </td>
 <td valign="top">
   <img src="screenshots/37-loki-theme-dark-portrait.png" width="175" alt="Loki Dark Portrait">
-</td>
-</tr></table>
-
-### Loki (Light)
-
-<table><tr>
-<td valign="top">
-  <img src="screenshots/18-loki-theme-menu.png" width="380" alt="Loki Menu"><br>
-  <img src="screenshots/26-loki-theme-landscape.png" width="380" alt="Loki Landscape">
-</td>
-<td valign="top">
-  <img src="screenshots/31-loki-theme-portrait.png" width="175" alt="Loki Portrait">
 </td>
 </tr></table>
 
@@ -106,8 +132,9 @@ Each theme defines custom labels for the three mood presets available in the Set
 
 | Theme | Target | Swarm | Recon |
 |-------|--------|-------|-------|
-| loki_dark | Vendetta | Chaotic | Slither |
 | loki | Vendetta | Chaotic | Slither |
+| loki_pink | Vendetta | Chaotic | Slither |
+| loki_dark | Vendetta | Chaotic | Slither |
 | bjorn | Raiding | Berserker | Scouting |
 | clown | Psychotic | Silly | Mime Mode |
 | pirate | Plundering | Broadside | Parley |
@@ -135,53 +162,101 @@ The main display uses a **skin image** — a single full-resolution background t
 
 You control **exactly where** each dynamic element is placed via coordinates in `theme.json`. You can also customize the font and color of each element independently.
 
+## Asset Pipeline (important)
+
+The Pager has **no PIL/Pillow and no FreeType**, and per-pixel Python drawing is far too slow (~0.3 fps). So Loki does **not** load `.png`/`.ttf` at runtime. Instead, every image and font is **pre-rendered on your computer** into device-native formats that the Pager can blit directly:
+
+| You author | Built artifact | What it is |
+|------------|----------------|------------|
+| `*.png` / `*.bmp` | `*.r565` | Raw RGB565 at native resolution (lazy-scale fallback source) |
+| `*.png` / `*.bmp` | `prewarm/*.nbg` | Opaque background, pre-scaled + pre-rotated to the screen |
+| `*.png` (with alpha) | `prewarm/*.nspr` | Transparent sprite, run-length encoded (keeps real alpha) |
+| `*.ttf` / `*.otf` | `*.fatlas` | Font glyph atlas (all sizes 8–40, rotations 0° and 270°) |
+
+Because of this there are **two copies of each theme** in the repo:
+
+- **`sources/themes/<name>/`** — the editable source art (`.png`, `.ttf`). **Not shipped to the Pager.**
+- **`payloads/user/reconnaissance/loki/themes/<name>/`** — the **deployed** theme: only the built `.r565` / `.nbg` / `.nspr` / `.fatlas` assets (plus `theme.json`, `comments/`). This is what is copied to the device.
+
+A shipped theme needs **no build step to run** — it is already pre-rendered. You only run the builder when you **change the art**.
+
+### Building assets
+
+Run the builder from the repo root (needs Python 3 + `Pillow` + `numpy` on your computer, never on the Pager):
+
+```bash
+# From sources/, after editing PNGs/TTFs in sources/themes/<name>/
+python3 sources/build_assets.py --root sources            # .png/.bmp -> .r565, .ttf/.otf -> .fatlas
+python3 sources/build_assets.py --root sources --prewarm --theme <name>   # prewarm .nbg/.nspr blobs
+
+# Flags:
+#   --images-only   only (re)build .r565 image blobs
+#   --fonts-only    only (re)build .fatlas font atlases
+#   --prewarm       build native .nbg/.nspr blobs (add --theme <name> to limit to one theme)
+```
+
+The builder writes each artifact **next to its source**. Copy the generated `.r565` / `.fatlas` / `prewarm/*` into the matching `payloads/.../themes/<name>/` folder to deploy (see `sources/README.md`). The `.png`/`.ttf` sources are **not** copied to the device.
+
+## Base Theme & Asset Sharing
+
+`loki` is the **base theme**: Loki resolves the character animations, status icons, menu/pause/settings backgrounds, static icons, and base fonts from `themes/loki/` by default. When you switch to another theme, Loki **overrides only the assets that theme actually provides** and falls back to `loki` for everything else.
+
+This means a new theme can be **tiny** — ship only what you want to change:
+
+- Want a different running-screen background but the same character and menus? Ship just `images/main_bg.png` (+ `main_bg_portrait.png`) and a `theme.json`. That is exactly how `loki_pink` and `loki_dark` work — each is ~1 MB instead of duplicating the ~76 MB animation set.
+- Want a fully custom theme? Provide your own `images/status/`, menu backgrounds, etc., and they take precedence over the base.
+
+> Keep the `loki` theme present — it is the fallback source for all other Loki-family themes.
+
 ## Directory Structure
 
+**Source tree** (editable art — lives in `sources/`, never deployed to the Pager):
+
 ```
-themes/
+sources/themes/
   my_theme/
-    theme.json                   # Required — theme configuration
     fonts/
-      title.TTF                  # Title font (used by menu system)
+      title.ttf                  # Title font (built -> title.fatlas)
       menu.ttf                   # Menu body font (optional)
-      stats.ttf                  # Custom font for stat numbers (optional)
-      dialogue.ttf               # Custom font for commentary (optional)
     images/
       main_bg.png                # Main display skin — landscape (480x222)
       main_bg_portrait.png       # Main display skin — portrait (222x480)
-      menu_bg.png                # Main menu background (480x222)
-      settings_bg.png            # Settings submenu background (480x222)
-      pause_bg.png               # Pause menu background — landscape (480x222)
-      pause_bg_portrait.png      # Pause menu background — portrait (222x480)
-      status/                    # Character animations + status icons per action
-        IDLE/
-          IDLE.png               # Status bar icon
-          IDLE1.png              # Animation frame 1
-          IDLE2.png              # Animation frame 2
-          ...
-        NetworkScanner/
-          NetworkScanner.png
-          NetworkScanner1.png
-          ...
-        SSHBruteforce/
-        FTPBruteforce/
-        TelnetBruteforce/
-        SMBBruteforce/
-        SQLBruteforce/
-        RDPBruteforce/
-        StealFilesSSH/
-        StealFilesFTP/
-        StealFilesSMB/
-        StealFilesTelnet/
-        StealDataSQL/
-        NmapVulnScanner/
-    comments/
-      comments.json              # Commentary lines by action type
+      menu_bg.png                # Main menu background (480x222)   (optional — falls back to loki)
+      settings_bg.png            # Settings submenu background       (optional)
+      pause_bg.png               # Pause menu background — landscape (optional)
+      pause_bg_portrait.png      # Pause menu background — portrait  (optional)
+      status/                    # Character animations (optional — falls back to loki)
+        IDLE/IDLE.png, IDLE1.png, IDLE2.png, ...
+        NetworkScanner/ ...
+        (one folder per action — see Supported Action Keys)
 ```
+
+**Deployed tree** (what is copied to the Pager — built artifacts only):
+
+```
+payloads/user/reconnaissance/loki/themes/
+  my_theme/
+    theme.json                   # Required — theme configuration
+    comments/comments.json       # Commentary lines by action type (optional)
+    fonts/
+      title.fatlas               # built from title.ttf
+    images/
+      main_bg.png.r565           # built from main_bg.png
+      main_bg_portrait.png.r565
+      (menu_bg / pause_bg / settings_bg .r565 only if this theme overrides them)
+      prewarm/
+        main_bg.png.480x222.r270.nbg
+        main_bg_portrait.png.222x480.r0.nbg
+        (one .nbg per background; status frames build to .nspr here)
+      status/                    # only if this theme overrides the character
+        IDLE/IDLE.png.r565, IDLE1.png.r565, ...
+```
+
+> A minimal theme (like `loki_pink`) ships only `theme.json`, `fonts/title.fatlas`, `images/main_bg*.r565`, and `images/prewarm/main_bg*.nbg`. Everything else falls back to the base `loki` theme.
 
 ## Creating Skin Images
 
-Skin images are full-resolution PNG files that contain all static UI elements baked in. Design them from scratch in any image editor (Photoshop, GIMP, Figma, etc.). The skin should include:
+Skin images are full-resolution PNG files that contain all static UI elements baked in. Design them from scratch in any image editor (Photoshop, GIMP, Figma, etc.), save them under `sources/themes/<name>/images/`, then **build them** (see [Asset Pipeline](#asset-pipeline-important)) — the Pager renders the built `.r565`/`.nbg`, not the PNG. The skin should include:
 
 - Theme title text
 - All stat icons positioned where you want them
@@ -195,19 +270,21 @@ Leave blank space where dynamic content will be drawn (stat numbers, character a
 **Landscape**: 480x222 pixels, saved as `images/main_bg.png`
 **Portrait**: 222x480 pixels, saved as `images/main_bg_portrait.png`
 
+After editing, run `python3 sources/build_assets.py --root sources` and `--prewarm --theme <name>`, then copy the built assets into the deployed theme folder.
+
 ## Image Specifications
 
 ### Skin Background (`main_bg.png`, `main_bg_portrait.png`)
 
 - **Landscape**: 480x222 pixels
 - **Portrait**: 222x480 pixels
-- **Format**: PNG (recommended) or BMP
+- **Author as**: PNG (recommended) or BMP → **built to** `main_bg.png.r565` + `prewarm/*.nbg`
 - Contains all static elements — title, icons, grid, frise, decorations
 
 ### Character Animation Frames (`images/status/`)
 
 - **Recommended size**: 175x175 pixels (scaled to fit the character area)
-- **Format**: PNG (with alpha transparency) or BMP
+- **Author as**: PNG with alpha transparency → **built to** `*.png.r565` + `prewarm/*.nspr` (the `.nspr` keeps the real alpha, so the sprite composites cleanly over any background — nothing is baked in)
 - **Naming**: Base name matches the action class, numbered sequentially: `IDLE.png`, `IDLE1.png`, `IDLE2.png`, ...
 - **Animation modes**: Set `animation_mode` in `theme.json`:
   - `"random"` — Picks a random frame each cycle
@@ -217,9 +294,10 @@ Leave blank space where dynamic content will be drawn (stat numbers, character a
 
 - **Landscape**: 480x222 pixels
 - **Portrait**: 222x480 pixels
-- **Format**: PNG (recommended) or BMP
+- **Author as**: PNG (recommended) or BMP → **built to** `*.r565` + `prewarm/*.nbg`
 - **Files**: `menu_bg.png`, `settings_bg.png`, `pause_bg.png`, `pause_bg_portrait.png`
 - All titles should be baked into the background images
+- **Optional** — omit any of these to inherit the base `loki` theme's version
 
 ## theme.json Reference
 
@@ -410,7 +488,7 @@ All 10 stat values in one section. Place them anywhere on your skin.
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `stats.font` | Arial | Font filename for all stats (looked up in theme `fonts/` dir) |
+| `stats.font` | Arial | Font filename for all stats — give the source name (e.g. `stats.ttf`); the built `stats.fatlas` must be shipped in the theme `fonts/` dir. Falls back to Arial if missing. |
 | `stats.color` | text_color | `[R,G,B]` color for all stats |
 | `stats.align` | `"left"` | Text alignment for all stats (`"left"`, `"center"`, or `"right"`) |
 | `stats.{name}.x` | — | X position for this stat's number (required) |
@@ -500,7 +578,7 @@ The `pause_menu_colors` object controls the in-game pause menu dynamic elements:
 
 | Key | Description |
 |-----|-------------|
-| `bg` | Fallback background (not used when `pause_bg.png` exists) |
+| `bg` | Fallback background (not used when a `pause_bg` image is present — this theme's or the base theme's) |
 | `text` | Text and highlight color |
 | `accent` | Accent color for unselected menu buttons |
 
@@ -542,14 +620,17 @@ The `comments/comments.json` file contains commentary lines grouped by action ty
 
 ### Supported Action Keys
 
-`IDLE`, `NetworkScanner`, `NmapVulnScanner`, `SSHBruteforce`, `FTPBruteforce`, `TelnetBruteforce`, `SMBBruteforce`, `SQLBruteforce`, `RDPBruteforce`, `StealFilesSSH`, `StealFilesFTP`, `StealFilesSMB`, `StealFilesTelnet`, `StealDataSQL`, `LogStandalone`, `LogStandalone2`, `ZombifySSH`
+`IDLE`, `NetworkScanner`, `NmapVulnScanner`, `SSHBruteforce`, `FTPBruteforce`, `TelnetBruteforce`, `SMBBruteforce`, `SQLBruteforce`, `RDPBruteforce`, `StealFilesSSH`, `StealFilesFTP`, `StealFilesSMB`, `StealFilesTelnet`, `StealFilesRDP`, `StealDataSQL`
+
+> SSH, RDP and SMB actions (`SSHBruteforce`, `RDPBruteforce`, `SMBBruteforce`, `StealFilesSSH`, `StealFilesRDP`, `StealFilesSMB`) run only when their optional binaries are installed on first run; the other actions always run. Themes may still supply art/comments for all of them.
 
 ## Tips
 
-- Start by copying an existing theme folder and modifying it
+- For a quick re-skin, copy `sources/themes/loki` as a starting point, change only `main_bg*`, rebuild, and let everything else fall back to the base theme (like `loki_pink`)
+- **Always rebuild after editing art** (`sources/build_assets.py`, then copy the built `.r565`/`.fatlas`/`prewarm/*` into the deployed theme) — the Pager never reads `.png`/`.ttf`
 - Test your theme on the Pager by switching to it from the startup menu (live preview)
 - You can place stats anywhere — they don't have to be in a grid or in corners
-- Custom fonts go in your theme's `fonts/` directory and are referenced by filename in `skin_layout`
+- Custom fonts go in your theme's `fonts/` directory as source `.ttf`, referenced by filename in `skin_layout`; build them to `.fatlas` and ship the `.fatlas` (the `.ttf` is not deployed)
 - Each element (stats, status, dialogue, battery) can have its own font and color
 - Individual stats can override the shared font/color (e.g., make gold numbers yellow)
 - Set `"show_icon": false` in `status` to hide the action icon and use text-only status

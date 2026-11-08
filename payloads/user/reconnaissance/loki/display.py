@@ -1150,12 +1150,15 @@ class Display:
         font_name = skin_section.get("font")
         if not font_name:
             return default_font
-        # Try as filename in theme fonts directory
+        # Try as filename in theme fonts directory. The device ships pre-rendered
+        # .fatlas atlases, not the source .ttf, and pagerctl loads the atlas by
+        # swapping the extension — so accept the name when its .fatlas sibling
+        # exists even if the literal .ttf does not.
         theme_path = os.path.join(self._theme_fonts_dir, font_name)
-        if os.path.isfile(theme_path):
+        if os.path.isfile(theme_path) or os.path.isfile(os.path.splitext(theme_path)[0] + '.fatlas'):
             return theme_path
-        # Try as absolute path
-        if os.path.isfile(font_name):
+        # Try as absolute path (or its atlas)
+        if os.path.isfile(font_name) or os.path.isfile(os.path.splitext(font_name)[0] + '.fatlas'):
             return font_name
         logger.debug(f"Font not found: {font_name}, using default")
         return default_font
