@@ -934,7 +934,7 @@ class Display:
     def draw_icon(self, x, y, icon_name):
         """Draw icon from static images."""
         icon_path = self.shared_data.static_images.get(icon_name)
-        if icon_path and os.path.exists(icon_path):
+        if self._img_ok(icon_path):
             try:
                 self.pager.draw_image_file(x, y, icon_path)
                 return True
@@ -945,7 +945,7 @@ class Display:
     def draw_icon_scaled(self, x, y, w, h, icon_name):
         """Draw icon scaled to size."""
         icon_path = self.shared_data.static_images.get(icon_name)
-        if icon_path and os.path.exists(icon_path):
+        if self._img_ok(icon_path):
             try:
                 self.pager.draw_image_file_scaled(x, y, w, h, icon_path)
                 return True
@@ -1084,7 +1084,7 @@ class Display:
         icon_x = L["x"] + 6
         icon_y = L["y"] + (L["h"] - icon_size) // 2
 
-        if self.shared_data.lokistatusimage_path and os.path.exists(self.shared_data.lokistatusimage_path):
+        if self._img_ok(self.shared_data.lokistatusimage_path):
             try:
                 self.pager.draw_image_file_scaled(icon_x, icon_y, icon_size, icon_size,
                                                    self.shared_data.lokistatusimage_path)
@@ -1142,7 +1142,7 @@ class Display:
             return
 
         frise_path = self.shared_data.static_images.get('frise')
-        if frise_path and os.path.exists(frise_path):
+        if self._img_ok(frise_path):
             try:
                 if self.orientation == "landscape":
                     self.pager.draw_image_file_scaled_rotated(L["x"], L["y"], L["w"], L["h"], frise_path, 90)
@@ -1157,7 +1157,7 @@ class Display:
         CS = self.layout["corner_stats"]
 
         # Draw character
-        if self.main_image_path and os.path.exists(self.main_image_path):
+        if self._img_ok(self.main_image_path):
             try:
                 self.pager.draw_image_file_scaled(C["x"], C["y"], C["w"], C["h"], self.main_image_path)
             except Exception as e:
@@ -1248,6 +1248,12 @@ class Display:
             x = x - tw
         self.pager.draw_ttf(x, y, text, color, font, font_size)
 
+    @staticmethod
+    def _img_ok(path):
+        """True if an image is drawable: the source file OR its pre-rendered
+        .r565 (v2 ships only the generated assets; the .png path is the handle)."""
+        return bool(path) and (os.path.exists(path) or os.path.exists(path + '.r565'))
+
     def draw_skin_bg(self):
         """Draw the full-resolution skin background image."""
         try:
@@ -1308,7 +1314,7 @@ class Display:
         elif align == "right":
             cx = cx - cw
 
-        if self.main_image_path and os.path.exists(self.main_image_path):
+        if self._img_ok(self.main_image_path):
             try:
                 self.pager.draw_image_file_scaled(cx, cy, cw, ch, self.main_image_path)
             except Exception as e:
@@ -1322,7 +1328,7 @@ class Display:
 
         # Status icon
         show_icon = skin_status.get("show_icon", True)
-        if show_icon and self.shared_data.lokistatusimage_path and os.path.exists(self.shared_data.lokistatusimage_path):
+        if show_icon and self._img_ok(self.shared_data.lokistatusimage_path):
             icon_x = skin_status["icon_x"]
             icon_y = skin_status["icon_y"]
             icon_size = skin_status.get("icon_size", 46)
