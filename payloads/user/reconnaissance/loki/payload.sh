@@ -42,7 +42,10 @@ fi
 
 # Packages required at runtime (installed to mmc so they survive reboots)
 # nmap-full brings the NSE scripts + data (nmap-ssl lacks the scripts dir).
-OPKG_PKGS="python3-light python3-ctypes python3-multiprocessing python3-sqlite3 python3-logging python3-urllib python3-email python3-xml python3-openssl nmap-full"
+# Full python3 (NOT python3-light) — pulls the whole stdlib (decimal, unicodedata,
+# ctypes, sqlite3, ssl, …) that pysmb / pymysql / paramiko need. nmap-full brings
+# nmap + the NSE scripts/data for vulnerability scanning.
+OPKG_PKGS="python3 nmap-full"
 
 has_net() {
     for ip in $(ip -4 addr 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1); do
