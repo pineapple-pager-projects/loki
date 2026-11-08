@@ -201,7 +201,7 @@
         },
         "battery": {
             "x": 209,
-            "y": 7,
+            "y": 8,
             "font_size": 18,
             "align": "center"
         }
@@ -291,7 +291,7 @@
         },
         "battery": {
             "x": 198,
-            "y": 6,
+            "y": 7,
             "font_size": 18,
             "align": "center"
         }

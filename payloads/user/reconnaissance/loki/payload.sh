@@ -186,6 +186,14 @@ LOG ""
 # Install dependencies if needed (no bundled binaries in v2)
 bootstrap_deps || exit 0
 
+# Re-resolve NMAPDIR now that nmap-full is installed — on first run the top-of-file
+# check ran before opkg installed the NSE scripts, so NMAPDIR could be left unset.
+if [ -d /mmc/usr/share/nmap/scripts ]; then
+    export NMAPDIR="/mmc/usr/share/nmap"
+elif [ -d /usr/share/nmap/scripts ]; then
+    export NMAPDIR="/usr/share/nmap"
+fi
+
 # Enable SSH/RDP/SMB attacks if their binaries are present or downloadable
 fetch_attack_binaries
 
