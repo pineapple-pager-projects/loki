@@ -564,7 +564,7 @@ class Display:
                 # Physical DOWN = adjust selected item left/decrease
                 if selected == 0:
                     current_brightness = max(20, current_brightness - 10)
-                    self.pager.set_brightness(current_brightness)
+                    self.pager.set_brightness(current_brightness, persist=True)
                     self.screen_brightness = current_brightness
                     draw_menu()
                 elif selected - 1 == launcher_opt_idx and multi_launch:
@@ -576,7 +576,7 @@ class Display:
                 # Physical UP = adjust selected item right/increase
                 if selected == 0:
                     current_brightness = min(100, current_brightness + 10)
-                    self.pager.set_brightness(current_brightness)
+                    self.pager.set_brightness(current_brightness, persist=True)
                     self.screen_brightness = current_brightness
                     draw_menu()
                 elif selected - 1 == launcher_opt_idx and multi_launch:
@@ -735,7 +735,7 @@ class Display:
             elif button & self.pager.BTN_LEFT:
                 if selected == 0:
                     current_brightness = max(20, current_brightness - 10)
-                    self.pager.set_brightness(current_brightness)
+                    self.pager.set_brightness(current_brightness, persist=True)
                     self.screen_brightness = current_brightness
                     draw_menu()
                 elif selected - 1 == launcher_opt_idx and multi_launch:
@@ -746,7 +746,7 @@ class Display:
             elif button & self.pager.BTN_RIGHT:
                 if selected == 0:
                     current_brightness = min(100, current_brightness + 10)
-                    self.pager.set_brightness(current_brightness)
+                    self.pager.set_brightness(current_brightness, persist=True)
                     self.screen_brightness = current_brightness
                     draw_menu()
                 elif selected - 1 == launcher_opt_idx and multi_launch:
