@@ -183,7 +183,8 @@ class LokiMenu:
         for name, attr in [('menu_bg', 'menu_bg'), ('settings_bg', 'settings_bg')]:
             for ext in ('.png', '.bmp'):
                 path = os.path.join(images_dir, name + ext)
-                if os.path.isfile(path):
+                # accept a pre-rendered .r565 when the source image isn't shipped
+                if os.path.isfile(path) or os.path.isfile(path + '.r565'):
                     setattr(self, attr, path)
                     break
 

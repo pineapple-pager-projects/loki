@@ -721,7 +721,9 @@ class SharedData:
         """Find an image file, preferring .png over .bmp."""
         for ext in ('.png', '.bmp'):
             path = os.path.join(directory, f'{name}{ext}')
-            if os.path.isfile(path):
+            # Accept a pre-rendered .r565 when the source image isn't shipped
+            # (v2 deploys pre-rendered assets only; sources live outside the Pager).
+            if os.path.isfile(path) or os.path.isfile(path + '.r565'):
                 return path
         return None
 
@@ -729,6 +731,27 @@ class SharedData:
     def _is_image(filename):
         """Check if a filename is a supported image."""
         return filename.endswith('.bmp') or filename.endswith('.png')
+
+    @staticmethod
+    def _list_frames(directory):
+        """Return sorted, de-duplicated animation-frame image paths in a directory,
+        accepting either source images (.png/.bmp) or their pre-rendered .r565 (v2
+        ships only the generated assets; the .png path is returned so pagerctl can
+        resolve the matching .r565 / prewarm blob)."""
+        def _nat_key(s):
+            return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', s)]
+        seen, frames = set(), []
+        try:
+            names = os.listdir(directory)
+        except OSError:
+            return frames
+        for image_name in sorted(names, key=_nat_key):
+            base = image_name[:-5] if image_name.endswith('.r565') else image_name
+            if (base.endswith('.png') or base.endswith('.bmp')) \
+               and re.search(r'\d', base) and base not in seen:
+                seen.add(base)
+                frames.append(os.path.join(directory, base))
+        return frames
 
 
     def _show_loading_screen(self, message="Loading..."):
@@ -806,12 +829,7 @@ class SharedData:
                 self.image_series[status] = []
                 status_dir = os.path.join(self.statuspicdir, status)
                 if os.path.isdir(status_dir):
-                    def _nat_key(s):
-                        return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', s)]
-                    for image_name in sorted(os.listdir(status_dir), key=_nat_key):
-                        if self._is_image(image_name) and re.search(r'\d', image_name):
-                            image_path = os.path.join(status_dir, image_name)
-                            self.image_series[status].append(image_path)
+                    self.image_series[status] = self._list_frames(status_dir)
                     logger.debug(f"Found {len(self.image_series[status])} animation frames for {status}")
 
             # Calculate character position (center-bottom of screen)
@@ -921,12 +939,7 @@ class SharedData:
             for status in list(self.image_series.keys()):
                 theme_action_dir = os.path.join(theme_status_dir, status)
                 if os.path.isdir(theme_action_dir):
-                    theme_frames = []
-                    def _nat_key(s):
-                        return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', s)]
-                    for image_name in sorted(os.listdir(theme_action_dir), key=_nat_key):
-                        if self._is_image(image_name) and re.search(r'\d', image_name):
-                            theme_frames.append(os.path.join(theme_action_dir, image_name))
+                    theme_frames = self._list_frames(theme_action_dir)
                     if theme_frames:
                         self.image_series[status] = theme_frames
                         logger.debug(f"Theme override: {len(theme_frames)} frames for {status}")

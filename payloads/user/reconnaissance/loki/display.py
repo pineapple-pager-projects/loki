@@ -455,7 +455,7 @@ class Display:
         theme_dir = os.path.join(PAYLOAD_DIR, 'themes', theme_name)
         for ext in ('.png', '.bmp'):
             path = os.path.join(theme_dir, 'images', 'pause_bg_portrait' + ext)
-            if os.path.isfile(path):
+            if os.path.isfile(path) or os.path.isfile(path + '.r565'):
                 pause_bg = path
                 break
 
@@ -624,7 +624,7 @@ class Display:
         theme_dir = os.path.join(PAYLOAD_DIR, 'themes', theme_name)
         for ext in ('.png', '.bmp'):
             path = os.path.join(theme_dir, 'images', 'pause_bg' + ext)
-            if os.path.isfile(path):
+            if os.path.isfile(path) or os.path.isfile(path + '.r565'):
                 pause_bg = path
                 break
 

@@ -136,18 +136,29 @@ bootstrap_deps() {
             RED|B) LOG "Exiting."; return 1 ;;
         esac
     done
-    LOG "Updating package lists..."
-    opkg update 2>&1 | while IFS= read -r l; do LOG "  $l"; done
-    LOG "Installing to mmc: $OPKG_PKGS"
-    opkg -d mmc install $OPKG_PKGS 2>&1 | while IFS= read -r l; do LOG "  $l"; done
-    # verify essentials
-    if command -v python3 >/dev/null 2>&1 && python3 -c 'import ctypes' 2>/dev/null \
-       && command -v nmap >/dev/null 2>&1; then
-        LOG "green" "Setup complete!"
-        sleep 1
-        return 0
-    fi
-    LOG "red" "Setup failed — check the connection and retry."
+    # opkg over a flaky link often leaves a partial install; retry a few times in
+    # one launch (re-checking what's actually missing each pass) before giving up.
+    attempt=0
+    while [ "$attempt" -lt 3 ]; do
+        attempt=$((attempt + 1))
+        LOG ""
+        LOG "yellow" "Install attempt $attempt of 3..."
+        LOG "Updating package lists..."
+        opkg update 2>&1 | while IFS= read -r l; do LOG "  $l"; done
+        LOG "Installing to mmc: $OPKG_PKGS"
+        opkg -d mmc install $OPKG_PKGS 2>&1 | while IFS= read -r l; do LOG "  $l"; done
+        # verify essentials (python3 + ctypes + nmap + NSE scripts)
+        if command -v python3 >/dev/null 2>&1 && python3 -c 'import ctypes' 2>/dev/null \
+           && command -v nmap >/dev/null 2>&1 \
+           && { [ -d /mmc/usr/share/nmap/scripts ] || [ -d /usr/share/nmap/scripts ]; }; then
+            LOG "green" "Setup complete!"
+            sleep 1
+            return 0
+        fi
+        LOG "yellow" "Some packages still missing — retrying..."
+    done
+    LOG "red" "Setup failed after 3 attempts."
+    LOG "Check the Pager's internet connection and relaunch Loki."
     LOG "Press any button to exit..."
     WAIT_FOR_INPUT >/dev/null 2>&1
     return 1
