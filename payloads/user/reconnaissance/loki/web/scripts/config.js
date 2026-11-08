@@ -142,11 +142,6 @@ const ConfigTab = {
         'log_error': 'Show Error Messages',
         'log_critical': 'Show Critical Messages',
 
-        // Display
-        'screen_brightness': 'Screen Brightness (0-100)',
-        'screen_dim_brightness': 'Dimmed Brightness (0-100)',
-        'screen_dim_timeout': 'Dim Screen After Inactivity (seconds)',
-
         // Theme
         'os_detection': 'Enable OS Fingerprinting (nmap -O)',
         'enable_vulners_lookup': 'Enable Vulners.com CVE Lookup (auto-detects internet)',

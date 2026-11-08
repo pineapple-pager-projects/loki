@@ -502,7 +502,7 @@ The `pause_menu_colors` object controls the in-game pause menu dynamic elements:
 |-----|-------------|
 | `bg` | Fallback background (not used when `pause_bg.png` exists) |
 | `text` | Text and highlight color |
-| `accent` | Accent color for brightness bar |
+| `accent` | Accent color for unselected menu buttons |
 
 #### Web UI Colors
 

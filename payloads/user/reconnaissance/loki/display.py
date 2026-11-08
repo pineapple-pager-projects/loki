@@ -445,9 +445,9 @@ class Display:
         self._fb_lock.acquire()
         self._fb_lock.release()
 
-        current_brightness = self.pager.get_brightness()
-        if current_brightness < 0:
-            current_brightness = self.screen_brightness
+        # Brightness is owned by pagerOS (the daemon reverts any value we set under
+        # UI_TAKEOVER), so Loki no longer offers a brightness control — adjust it
+        # from the pager's native Settings menu instead.
 
         # Resolve pause background image
         pause_bg = None
@@ -482,15 +482,15 @@ class Display:
             options.append((title.upper(), (42, path)))
         options.append(("EXIT PAYLOAD", 0))
 
-        # selected: 0 = brightness bar, 1..N = buttons (1-indexed into options)
-        selected = 1
-        num_items = 1 + len(options)
+        # selected: 0-based index into options
+        selected = 0
+        num_items = len(options)
 
         # Pre-compute auto-fitted font sizes for buttons
         btn_w = 180
         btn_h = 32
         # Find the largest size that fits the widest label
-        all_labels = [label for label, _ in options] + ["BRIGHTNESS", "100%"]
+        all_labels = [label for label, _ in options]
         widest_label = max(all_labels, key=len)
         fs_btn = self._fit_font_size(widest_label, self.font_menu, btn_w, btn_h)
 
@@ -501,44 +501,20 @@ class Display:
                 self.pager.fill_rect(0, 0, self.width, self.height, pause_bg_color)
 
             # Title is baked into pause background image
-            y_off = 85
-
-            box_y = int(self.height * 0.10) - 3
-            box_h = int(self.height * 0.80)
-
-            bright_color = pause_text_color if selected == 0 else pause_accent_color
-
             btn_x = (self.width - btn_w) // 2
-
-            bar_y = y_off + box_y + 60
-            bar_x = btn_x
-            bar_w = btn_w
-            bar_h = 18
-
-            # BRIGHTNESS label tight above bar — same font size as buttons
-            bright_y = bar_y - fs_btn - 4
-            self.pager.draw_ttf_centered(bright_y, "BRIGHTNESS", bright_color, self.font_menu, fs_btn)
-
-            if selected == 0:
-                self.pager.rect(bar_x - 3, bar_y - 3, bar_w + 6, bar_h + 6, pause_text_color)
-            self.pager.fill_rect(bar_x, bar_y, bar_w, bar_h, pause_accent_color)
-            fill_w = int(bar_w * current_brightness / 100)
-            self.pager.fill_rect(bar_x, bar_y, fill_w, bar_h, pause_text_color)
-            self.pager.rect(bar_x, bar_y, bar_w, bar_h, pause_text_color)
-
-            pct_y = bar_y + bar_h + 4
-            fs_pct = max(8, fs_btn - 4)
-            self.pager.draw_ttf_centered(pct_y, f"{current_brightness}%", pause_text_color, self.font_menu, fs_pct)
-
             btn_gap = 10
-            first_btn_y = pct_y + fs_pct + 5
 
             # Get actual rendered height for vertical centering
             text_h = self.pager.ttf_height(self.font_menu, fs_btn)
 
+            # Center the button stack in the area below the baked title.
+            top = int(self.height * 0.28)
+            stack_h = len(options) * btn_h + (len(options) - 1) * btn_gap
+            first_btn_y = top + max(0, (self.height - 20 - top - stack_h) // 2)
+
             for i, (label, _action) in enumerate(options):
                 btn_y = first_btn_y + i * (btn_h + btn_gap)
-                is_sel = (i + 1 == selected)
+                is_sel = (i == selected)
                 btn_color = pause_text_color if is_sel else pause_accent_color
                 txt_color = pause_bg_color if is_sel else pause_text_color
                 self.pager.fill_rect(btn_x, btn_y, btn_w, btn_h, btn_color)
@@ -560,44 +536,32 @@ class Display:
         while True:
             button = self.pager.wait_button()
 
-            if button & self.pager.BTN_DOWN:
-                # Portrait hold: landscape-DOWN is the physical RIGHT-side button,
-                # so it moves the bar right / increases (and launcher -> next).
-                if selected == 0:
-                    current_brightness = min(100, current_brightness + 10)
-                    self.pager.set_brightness(current_brightness, persist=True)
-                    self.screen_brightness = current_brightness
-                    draw_menu()
-                elif selected - 1 == launcher_opt_idx and multi_launch:
+            # Portrait button mapping, now that the display renders upright (the
+            # old mapping was inverted to compensate for the upside-down panel bug).
+            if button & self.pager.BTN_UP:
+                # launcher -> next entry
+                if selected == launcher_opt_idx and multi_launch:
                     launcher_idx = (launcher_idx + 1) % len(launchers)
                     title, path = launchers[launcher_idx]
                     options[launcher_opt_idx] = (title.upper(), (42, path))
                     draw_menu()
-            elif button & self.pager.BTN_UP:
-                # Portrait hold: landscape-UP is the physical LEFT-side button,
-                # so it moves the bar left / decreases (and launcher -> prev).
-                if selected == 0:
-                    current_brightness = max(20, current_brightness - 10)
-                    self.pager.set_brightness(current_brightness, persist=True)
-                    self.screen_brightness = current_brightness
-                    draw_menu()
-                elif selected - 1 == launcher_opt_idx and multi_launch:
+            elif button & self.pager.BTN_DOWN:
+                # launcher -> previous entry
+                if selected == launcher_opt_idx and multi_launch:
                     launcher_idx = (launcher_idx - 1) % len(launchers)
                     title, path = launchers[launcher_idx]
                     options[launcher_opt_idx] = (title.upper(), (42, path))
                     draw_menu()
-            elif button & self.pager.BTN_LEFT:
-                # Physical LEFT = navigate down (portrait mapping, corrected)
+            elif button & self.pager.BTN_RIGHT:
+                # navigate down the list
                 selected = (selected + 1) % num_items
                 draw_menu()
-            elif button & self.pager.BTN_RIGHT:
-                # Physical RIGHT = navigate up (portrait mapping, corrected)
+            elif button & self.pager.BTN_LEFT:
+                # navigate up the list
                 selected = (selected - 1) % num_items
                 draw_menu()
             elif button & self.pager.BTN_A:
-                if selected == 0:
-                    continue  # Brightness has no select action
-                action = options[selected - 1][1]
+                action = options[selected][1]
                 self.dialog_showing = False
                 if isinstance(action, tuple):
                     self._handoff_launcher_path = action[1]
@@ -616,9 +580,9 @@ class Display:
         self._fb_lock.acquire()
         self._fb_lock.release()
 
-        current_brightness = self.pager.get_brightness()
-        if current_brightness < 0:
-            current_brightness = self.screen_brightness
+        # Brightness is owned by pagerOS (the daemon reverts any value we set under
+        # UI_TAKEOVER), so Loki no longer offers a brightness control — adjust it
+        # from the pager's native Settings menu instead.
 
         # Resolve pause background image
         pause_bg = None
@@ -653,14 +617,14 @@ class Display:
             options.append((title.upper(), (42, path)))
         options.append(("EXIT PAYLOAD", 0))
 
-        # selected: 0 = brightness bar, 1..N = buttons (1-indexed into options)
-        selected = 1
-        num_items = 1 + len(options)
+        # selected: 0-based index into options
+        selected = 0
+        num_items = len(options)
 
-        # Pre-compute auto-fitted font size — fits widest label including BRIGHTNESS
+        # Pre-compute auto-fitted font size — fits widest label
         btn_w = 200
         btn_h = 30
-        all_labels = [label for label, _ in options] + ["BRIGHTNESS", "100%"]
+        all_labels = [label for label, _ in options]
         widest_label = max(all_labels, key=len)
         fs_btn = self._fit_font_size(widest_label, self.font_menu, btn_w, btn_h)
 
@@ -671,42 +635,18 @@ class Display:
                 self.pager.fill_rect(0, 0, self.width, self.height, pause_bg_color)
 
             # Title is baked into pause background image
-            box_x, box_y = 10, 10
-            box_w, box_h = self.width - 20, self.height - 20
-
-            # Brightness section
-            bright_color = pause_text_color if selected == 0 else pause_accent_color
-
             btn_x = (self.width - btn_w) // 2
 
-            bar_y = 67
-            bar_x = btn_x
-            bar_w = btn_w
-            bar_h = 16
-
-            # BRIGHTNESS label tight above bar
-            lbl_w = self.pager.ttf_width("BRIGHTNESS", self.font_menu, fs_btn)
-            self.pager.draw_ttf((self.width - lbl_w) // 2, bar_y - fs_btn - 2, "BRIGHTNESS", bright_color, self.font_menu, fs_btn)
-            if selected == 0:
-                self.pager.rect(bar_x - 3, bar_y - 3, bar_w + 6, bar_h + 6, pause_text_color)
-            self.pager.fill_rect(bar_x, bar_y, bar_w, bar_h, pause_accent_color)
-            fill_w = int(bar_w * current_brightness / 100)
-            self.pager.fill_rect(bar_x, bar_y, fill_w, bar_h, pause_text_color)
-            self.pager.rect(bar_x, bar_y, bar_w, bar_h, pause_text_color)
-
-            pct_text = f"{current_brightness}%"
-            fs_pct = max(8, fs_btn - 4)
-            pct_w = self.pager.ttf_width(pct_text, self.font_menu, fs_pct)
-            self.pager.draw_ttf((self.width - pct_w) // 2, 87, pct_text, pause_text_color, self.font_menu, fs_pct)
-
-            # Menu buttons - vertical stack
+            # Menu buttons - vertical stack, centered below the baked title
             btn_gap = 8
-            first_btn_y = 113
             text_h = self.pager.ttf_height(self.font_menu, fs_btn)
+            top = int(self.height * 0.30)
+            stack_h = len(options) * btn_h + (len(options) - 1) * btn_gap
+            first_btn_y = top + max(0, (self.height - 10 - top - stack_h) // 2)
 
             for i, (label, _action) in enumerate(options):
                 btn_y = first_btn_y + i * (btn_h + btn_gap)
-                is_sel = (i + 1 == selected)
+                is_sel = (i == selected)
                 btn_color = pause_text_color if is_sel else pause_accent_color
                 txt_color = pause_bg_color if is_sel else pause_text_color
                 self.pager.fill_rect(btn_x, btn_y, btn_w, btn_h, btn_color)
@@ -735,31 +675,19 @@ class Display:
                 selected = (selected + 1) % num_items
                 draw_menu()
             elif button & self.pager.BTN_LEFT:
-                if selected == 0:
-                    current_brightness = max(20, current_brightness - 10)
-                    self.pager.set_brightness(current_brightness, persist=True)
-                    self.screen_brightness = current_brightness
-                    draw_menu()
-                elif selected - 1 == launcher_opt_idx and multi_launch:
+                if selected == launcher_opt_idx and multi_launch:
                     launcher_idx = (launcher_idx - 1) % len(launchers)
                     title, path = launchers[launcher_idx]
                     options[launcher_opt_idx] = (title.upper(), (42, path))
                     draw_menu()
             elif button & self.pager.BTN_RIGHT:
-                if selected == 0:
-                    current_brightness = min(100, current_brightness + 10)
-                    self.pager.set_brightness(current_brightness, persist=True)
-                    self.screen_brightness = current_brightness
-                    draw_menu()
-                elif selected - 1 == launcher_opt_idx and multi_launch:
+                if selected == launcher_opt_idx and multi_launch:
                     launcher_idx = (launcher_idx + 1) % len(launchers)
                     title, path = launchers[launcher_idx]
                     options[launcher_opt_idx] = (title.upper(), (42, path))
                     draw_menu()
             elif button & self.pager.BTN_A:
-                if selected == 0:
-                    continue  # Brightness has no select action
-                action = options[selected - 1][1]
+                action = options[selected][1]
                 self.dialog_showing = False
                 if isinstance(action, tuple):
                     self._handoff_launcher_path = action[1]

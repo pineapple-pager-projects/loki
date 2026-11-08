@@ -135,7 +135,13 @@ class Pager:
     def __exit__(self, *a): self.cleanup(); return False
 
     # ----------------------------- geometry ------------------------------
-    def set_rotation(self, rotation): self.rotation = rotation
+    def set_rotation(self, rotation):
+        self.rotation = rotation
+        # flip() reverses the whole native buffer (a 180° rotation) to correct the
+        # panel's physical mount. That is only right for the landscape native
+        # mapping (rotation 270/90); portrait (rotation 0) is identity-mapped, so
+        # reversing it renders the screen upside down. Invert for landscape only.
+        self._invert = rotation in (90, 270)
 
     @property
     def width(self):
@@ -575,39 +581,22 @@ class Pager:
         except Exception:
             pass
         return None
-    def set_brightness(self, percent, persist=False):
-        """Set backlight brightness (0-100%).
+    def set_brightness(self, percent):
+        """Set backlight brightness (0-100%) via sysfs.
 
-        A direct sysfs write alone does not stick under UI_TAKEOVER: pagerOS
-        stores its brightness in UCI (system.@pager[0].lcd_brightness, raw units)
-        and re-applies that value on UI events (button press, screen wake), which
-        reverts our write. With persist=True we also update UCI the same way the
-        native Settings menu does, so the daemon keeps our value instead of
-        reverting it. (Only persist on a deliberate user change, not on every
-        transient dim/wake, to avoid needless flash writes.)
+        NOTE: under UI_TAKEOVER this does NOT stick — pagerOS owns the backlight
+        and re-applies its own value on UI events, reverting the write within a
+        moment. Useful only when the pager daemon is stopped (non-takeover
+        payloads). Brightness for takeover payloads should be left to pagerOS.
         """
         d = self._bl_dir()
         if not d: return -1
         try:
             mx = int(open(os.path.join(d, "max_brightness")).read())
-            raw = int(mx * percent / 100)
-            open(os.path.join(d, "brightness"), "w").write(str(raw))
-            if persist:
-                self._persist_brightness(raw)
+            open(os.path.join(d, "brightness"), "w").write(str(int(mx * percent / 100)))
             return 0
         except Exception:
             return -1
-
-    def _persist_brightness(self, raw):
-        """Store brightness in pagerOS UCI config so the daemon stops reverting it."""
-        try:
-            import subprocess
-            subprocess.run(["uci", "set", f"system.@pager[0].lcd_brightness={int(raw)}"],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
-            subprocess.run(["uci", "commit", "system"],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
-        except Exception:
-            pass
     def get_brightness(self):
         d = self._bl_dir()
         if not d: return -1

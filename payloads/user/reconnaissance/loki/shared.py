@@ -184,9 +184,6 @@ class SharedData:
             "log_critical": True,
 
             "__title_display__": "Display",
-            "screen_brightness": 80,
-            "screen_dim_brightness": 25,
-            "screen_dim_timeout": 60,
             "screen_rotation": 270,
 
             "__title_theme__": "Theme",

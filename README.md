@@ -197,14 +197,15 @@ Press **B** while Loki is running to open the pause menu:
 
 | Option | Description |
 |--------|-------------|
-| **Brightness** | Adjust screen brightness 20–100% with LEFT/RIGHT (landscape) or UP/DOWN (portrait) |
 | **MAIN MENU** | Stop Loki and return to the graphical start menu |
 | **> Pagergotchi** | Hand off to Pagergotchi (only shown if installed) |
 | **EXIT PAYLOAD** | Stop Loki and return to the Pager launcher |
 
+Navigate with LEFT/RIGHT (portrait) or UP/DOWN (landscape); **A** selects, **B** closes the menu. Screen **brightness is managed by pagerOS** — set it from the Pager's native Settings menu.
+
 **Payload handoff:** Loki dynamically discovers other payloads via `launch_*.sh` scripts in the payload directory. Each launcher script declares a `# Title:` and `# Requires:` path — if the required path exists, the launcher appears as a menu option. Selecting it writes the launcher path to `data/.next_payload` and exits with code 42, which `payload.sh` picks up to launch the target payload.
 
-The screen automatically dims after a configurable timeout to save battery. Any button press wakes the screen.
+Screen dimming, sleep, and brightness are handled by pagerOS (Loki runs under the firmware's UI takeover, so the OS retains backlight control).
 
 ### Web Interface
 
@@ -320,10 +321,9 @@ Edit `config/shared_config.json` to customize Loki's behavior:
 ### Display Settings
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `screen_brightness` | 80 | Default screen brightness (20-100%) |
-| `screen_dim_brightness` | 25 | Brightness when dimmed (20-100%) |
-| `screen_dim_timeout` | 60 | Seconds of inactivity before dimming |
 | `screen_rotation` | 270 | Display rotation (270 = landscape, 0 = portrait) |
+
+> Screen brightness, dimming, and sleep are owned by pagerOS under UI takeover — adjust brightness from the Pager's native Settings menu, not from Loki.
 
 ### Theme Settings
 | Setting | Default | Description |
