@@ -422,89 +422,74 @@ All data is stored in `/mmc/root/loot/loki/`:
 ## Architecture
 
 ```
-loki/
-├── payload.sh             # Launcher script (handles exit codes, spinner)
-├── loki_menu.py           # Graphical startup menu (interface, theme, settings)
-├── Loki.py                # Main entry point
-├── display.py             # Pager LCD display (pagerctl, pause menu, payload handoff)
-├── orchestrator.py        # Task scheduler (spread/per-host/per-phase strategies)
-├── shared.py              # Shared state & config
-├── utils.py               # Web server utilities
-├── webapp.py              # HTTP server (web UI + API)
-├── logger.py              # Logging with per-module log files
-├── pagerctl.py            # Pure-Python Pager hardware/graphics library (UI_TAKEOVER + /dev/fb0)
-├── comment.py             # Viking commentary engine
-├── cve_lookup.py          # KEV/NVD CVE enrichment
-├── device_classifier.py   # OUI-based device classification
-├── init_shared.py         # Shared data initializer
-├── timeout_utils.py       # Timeout helpers
-├── launch_pagergotchi.sh  # Handoff launcher for Pagergotchi
-├── bin/                   # Optional attack binaries (MIPS) — NOT bundled; downloaded
-│   │                      # on first run for SSH/RDP/SMB. nmap comes from opkg.
-│   ├── sfreerdp           # FreeRDP client (auth-only)
-│   ├── xfreerdp           # FreeRDP client (full)
-│   ├── smb2-cat           # libsmb2 file reader
-│   ├── smb2-find          # libsmb2 file finder
-│   └── smb2-share-enum    # libsmb2 share enumerator
-├── lib/                   # Bundled pure-Python packages (vendored)
-│   ├── paramiko/          # SSH library (pure-Python)
-│   ├── pymysql/           # MySQL client
-│   ├── smb/  nmb/         # pysmb (SMB)
-│   ├── nmap/              # python-nmap
-│   ├── getmac/            # MAC address lookup
-│   ├── pyasn1/ pycparser/ # deps
-│   ├── tqdm/              # Progress bars
-│   └── ...                # The native crypto stack (cryptography / bcrypt / nacl +
-│                          # libssh2 / libsodium) is downloaded on first run, not bundled.
-│                          # nmap + NSE scripts are installed via opkg on first run.
-├── actions/               # Attack modules
-│   ├── scanning.py            # Network + port scanner
-│   ├── nmap_vuln_scanner.py   # Vulnerability scanner (batched NSE)
-│   ├── ftp_connector.py       # FTP brute force
-│   ├── ssh_connector.py       # SSH brute force
-│   ├── telnet_connector.py    # Telnet brute force
-│   ├── smb_connector.py       # SMB brute force
-│   ├── sql_connector.py       # MySQL brute force
-│   ├── rdp_connector.py       # RDP brute force
-│   ├── steal_files_ftp.py     # FTP file exfiltration
-│   ├── steal_files_ssh.py     # SSH file exfiltration
-│   ├── steal_files_telnet.py  # Telnet file exfiltration
-│   ├── steal_files_smb.py     # SMB file exfiltration
-│   ├── steal_data_sql.py      # MySQL data exfiltration
-│   └── IDLE.py                # Idle/cooldown action
+loki/                          # deployed to the Pager at payloads/user/reconnaissance/loki/
+├── payload.sh                # Launcher: first-run opkg setup, optional binary download, UI_TAKEOVER
+├── pagerctl.sh               # Native launcher used by pagerctl_home (optional)
+├── Loki.py                   # Main entry point
+├── loki_menu.py              # Graphical startup menu (interface, theme, settings)
+├── display.py                # Pager LCD display (pause menu, payload handoff)
+├── orchestrator.py           # Task scheduler (spread/per-host/per-phase strategies)
+├── shared.py                 # Shared state & config
+├── utils.py                  # Web server utilities
+├── webapp.py                 # HTTP server (web UI + API)
+├── logger.py                 # Logging with per-module log files
+├── comment.py                # Viking commentary engine
+├── cve_lookup.py             # KEV/NVD CVE enrichment
+├── device_classifier.py      # OUI-based device classification
+├── init_shared.py            # Shared data initializer
+├── timeout_utils.py          # Timeout helpers
+├── actions/                  # Attack modules (loaded from config/actions.json)
+│   ├── scanning.py               # Network + port scanner
+│   ├── nmap_vuln_scanner.py      # Vulnerability scanner (batched NSE)
+│   ├── ftp_connector.py          # FTP brute force
+│   ├── telnet_connector.py       # Telnet brute force
+│   ├── sql_connector.py          # MySQL brute force
+│   ├── steal_files_ftp.py        # FTP file exfiltration
+│   ├── steal_files_telnet.py     # Telnet file exfiltration
+│   ├── steal_data_sql.py         # MySQL data exfiltration
+│   ├── IDLE.py                   # Idle/cooldown action
+│   └── _deferred/                # Need the downloaded binaries; copied into actions/
+│       ├── ssh_connector.py      #   on first run once the binaries are installed
+│       ├── steal_files_ssh.py
+│       ├── smb_connector.py
+│       ├── steal_files_smb.py
+│       └── rdp_connector.py
+├── lib/                      # Bundled pure-Python packages (vendored, .pyc)
+│   ├── pagerctl.py               # Pure-Python Pager hardware/graphics library
+│   ├── paramiko/                 # SSH (pure-Python)
+│   ├── pymysql/                  # MySQL client
+│   ├── smb/  nmb/                # pysmb (SMB)
+│   ├── nmap/                     # python-nmap
+│   ├── getmac/                   # MAC address lookup
+│   └── pyasn1/ pycparser/ six.py tqdm/   # deps
+│                             # (crypto stack cryptography/bcrypt/nacl + libssh2/
+│                             #  libsodium is DOWNLOADED on first run, not bundled)
+├── bin/                      # (NOT in repo) optional attack binaries downloaded on
+│                             #  first run: sfreerdp, xfreerdp, smb2-cat/find/share-enum.
+│                             #  nmap itself comes from opkg.
 ├── config/
-│   ├── shared_config.json     # User configuration
-│   └── actions.json           # Action module definitions
+│   ├── actions.json              # Attack module definitions
+│   └── shared_config.json        # User configuration
 ├── data/
-│   └── kev_catalog.json       # CISA KEV vulnerability catalog
-├── themes/                # Theme packs (see THEME_README.md)
-│   ├── loki_dark/         # Default — Loki (Dark) theme
-│   ├── loki/              # Loki (Light) theme
-│   ├── bjorn/             # Original Viking theme
-│   ├── clown/             # CLOWNSEC jester theme
-│   ├── pirate/            # Cap'n Plndr pirate theme
-│   └── knight/            # Sir Haxalot knight theme
-├── web/                   # Web UI (see WEBUI_README.md)
-│   ├── index.html         # SPA shell
-│   ├── manifest.json      # PWA manifest
-│   ├── css/
-│   │   └── loki.css       # Theme styles
-│   ├── scripts/
-│   │   ├── app.js         # SPA router & polling manager
-│   │   ├── dashboard.js   # Stats grid + status
-│   │   ├── console.js     # Integrated log console
-│   │   ├── network.js     # Host cards + attack badges
-│   │   ├── attacks.js     # Timeline + manual mode
-│   │   ├── loot.js        # Credentials, files, vulns, logs
-│   │   ├── config.js      # Settings editor
-│   │   ├── terminal.js    # Device command execution
-│   │   └── loki.js        # LCD framebuffer mirror
-│   ├── fonts/
-│   │   └── Viking.TTF
-│   └── images/            # Favicons + PWA icons
+│   └── kev_catalog.json          # CISA KEV vulnerability catalog
+├── themes/                   # Theme packs (see THEME_README.md); pre-rendered assets
+│   ├── loki/    loki_dark/
+│   ├── bjorn/   clown/
+│   └── pirate/  knight/
+├── web/                      # Web UI (see WEBUI_README.md)
+│   ├── index.html                # SPA shell
+│   ├── manifest.json             # PWA manifest
+│   ├── css/loki.css
+│   ├── scripts/                  # app, dashboard, console, network, attacks, loot, config, terminal, loki
+│   ├── fonts/Viking.TTF
+│   └── images/                   # Favicons + PWA icons
 └── resources/
-    ├── dictionary/        # Wordlists (users.txt, passwords.txt)
-    └── fonts/             # Display fonts (Arial, DejaVuSansMono)
+    ├── dictionary/               # Wordlists (users.txt, passwords.txt)
+    └── fonts/                    # Display fonts (Arial, DejaVuSansMono)
+
+Source theme images, source fonts, and the asset build script live in the repo-root
+sources/ folder and are NOT deployed to the Pager — the payload above ships with the
+pre-rendered runtime assets (.fatlas/.r565/.nbg/.nspr), so it copies straight across.
 ```
 
 ## Manual Attack Mode
