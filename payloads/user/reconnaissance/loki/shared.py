@@ -187,7 +187,7 @@ class SharedData:
             "screen_rotation": 270,
 
             "__title_theme__": "Theme",
-            "theme": "loki",
+            "theme": "loki_dark",
             "override_theme_delays": False,
             "override_theme_comment_delays": False,
 
@@ -848,7 +848,7 @@ class SharedData:
 
     def load_theme(self):
         """Load theme resources, falling back to defaults for anything not provided."""
-        theme_name = self.config.get("theme", "loki")
+        theme_name = self.config.get("theme", "loki_dark")
         theme_dir = os.path.join(self.currentdir, "themes", theme_name)
 
         # Defaults (already set by load_fonts/load_images/initialize_paths)
