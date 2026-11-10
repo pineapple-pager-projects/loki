@@ -40,12 +40,60 @@ elif [ -d "/usr/share/nmap/scripts" ]; then
     export NMAPDIR="/usr/share/nmap"
 fi
 
-# Packages required at runtime (installed to mmc so they survive reboots)
-# nmap-full brings the NSE scripts + data (nmap-ssl lacks the scripts dir).
+# Packages required at runtime (installed to mmc so they survive reboots).
+# Kept as SEPARATE opkg installs on purpose: the Pager firmware usually already
+# ships an nmap variant (base / -ssl), and nmap-full *conflicts* with it (they
+# both own /usr/bin/nmap). In one combined `opkg install python3 nmap-full` that
+# conflict aborts the whole transaction and python3 never lands either. So python3
+# installs on its own, and nmap-full is pursued separately, forced past the
+# variant conflict (see install_nmap) since it goes to a separate root (/mmc).
 # Full python3 (NOT python3-light) — pulls the whole stdlib (decimal, unicodedata,
 # ctypes, sqlite3, ssl, …) that pysmb / pymysql / paramiko need. nmap-full brings
 # nmap + the NSE scripts/data for vulnerability scanning.
-OPKG_PKGS="python3 nmap-full"
+OPKG_PY="python3"
+OPKG_NMAP="nmap-full"
+
+# True when a usable python3 (with ctypes) is present.
+have_python() {
+    command -v python3 >/dev/null 2>&1 && python3 -c 'import ctypes' 2>/dev/null
+}
+
+# Install full python3 to /mmc. If a split dep (e.g. python3-light, "lite") is
+# already installed in another root, opkg can skip pulling it into /mmc and leave
+# python3 unusable; a forced retry (--force-depends) completes it in place.
+install_python() {
+    have_python && return 0
+    opkg -d mmc install "$OPKG_PY" 2>&1 | while IFS= read -r l; do LOG "  $l"; done
+    have_python && return 0
+    LOG "yellow" "  python3 blocked by an existing package — forcing..."
+    opkg -d mmc install --force-overwrite --force-depends "$OPKG_PY" 2>&1 \
+        | while IFS= read -r l; do LOG "  $l"; done
+}
+
+# True when an nmap with a NON-EMPTY NSE scripts dir is already usable (either
+# root). The dir can linger *empty* after an nmap-full removal, so a bare -d test
+# would false-positive and wrongly skip the install; require actual contents.
+have_nmap_scripts() {
+    command -v nmap >/dev/null 2>&1 || return 1
+    for d in /mmc/usr/share/nmap/scripts /usr/share/nmap/scripts; do
+        [ -d "$d" ] && [ -n "$(ls -A "$d" 2>/dev/null)" ] && return 0
+    done
+    return 1
+}
+
+# Install nmap-full to /mmc. If the firmware already ships an nmap variant
+# (base / -ssl) or a shared dependency is "already installed", opkg can refuse.
+# A forced retry (--force-overwrite handles file overlaps, --force-depends an
+# already-present dep) lays ours down alongside under /mmc, where PATH + NMAPDIR
+# already prefer it. NOTE: this opkg has no --force-conflicts flag; don't add it.
+install_nmap() {
+    have_nmap_scripts && return 0
+    opkg -d mmc install "$OPKG_NMAP" 2>&1 | while IFS= read -r l; do LOG "  $l"; done
+    have_nmap_scripts && return 0
+    LOG "yellow" "  nmap-full blocked by an existing package — forcing..."
+    opkg -d mmc install --force-overwrite --force-depends "$OPKG_NMAP" 2>&1 \
+        | while IFS= read -r l; do LOG "  $l"; done
+}
 
 has_net() {
     for ip in $(ip -4 addr 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1); do
@@ -112,8 +160,8 @@ bootstrap_deps() {
     command -v python3 >/dev/null 2>&1 || NEED="python3"
     python3 -c 'import ctypes' 2>/dev/null || NEED="$NEED ctypes"
     command -v nmap >/dev/null 2>&1 || NEED="$NEED nmap"
-    # nmap-ssl has no NSE scripts dir; require nmap-full for vuln scanning
-    [ -d /mmc/usr/share/nmap/scripts ] || [ -d /usr/share/nmap/scripts ] || NEED="$NEED nmap-scripts"
+    # nmap base/-ssl has no (populated) NSE scripts dir; require nmap-full for vuln scanning
+    have_nmap_scripts || NEED="$NEED nmap-scripts"
     [ -z "$NEED" ] && return 0
 
     LOG ""
@@ -148,12 +196,14 @@ bootstrap_deps() {
         LOG "yellow" "Install attempt $attempt of 3..."
         LOG "Updating package lists..."
         opkg update 2>&1 | while IFS= read -r l; do LOG "  $l"; done
-        LOG "Installing to mmc: $OPKG_PKGS"
-        opkg -d mmc install $OPKG_PKGS 2>&1 | while IFS= read -r l; do LOG "  $l"; done
-        # verify essentials (python3 + ctypes + nmap + NSE scripts)
-        if command -v python3 >/dev/null 2>&1 && python3 -c 'import ctypes' 2>/dev/null \
-           && command -v nmap >/dev/null 2>&1 \
-           && { [ -d /mmc/usr/share/nmap/scripts ] || [ -d /usr/share/nmap/scripts ]; }; then
+        # Install python3 first, on its own, so an nmap conflict can't abort it.
+        LOG "Installing python3 to mmc..."
+        install_python
+        # Then nmap-full, forced past any pre-installed nmap variant conflict.
+        LOG "Installing nmap (NSE scripts) to mmc..."
+        install_nmap
+        # verify essentials (python3 + ctypes + nmap + populated NSE scripts)
+        if have_python && have_nmap_scripts; then
             LOG "green" "Setup complete!"
             sleep 1
             return 0
